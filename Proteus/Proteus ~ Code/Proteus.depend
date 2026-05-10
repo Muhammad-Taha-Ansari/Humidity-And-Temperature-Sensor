@@ -1,0 +1,4 @@
+# depslib dependency file v1.0
+1778447381 source:c:\software\code block\project\proteus\fuse.c
+	<avr/io.h>
+
