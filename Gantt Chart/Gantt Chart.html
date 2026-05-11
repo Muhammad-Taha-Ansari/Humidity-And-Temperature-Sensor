@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CEP Gantt Chart – AVR Temperature & Humidity Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root {
+    --c-bg: #f7f8fa;
+    --c-surface: #ffffff;
+    --c-border: #dde2ea;
+    --c-text-primary: #1a2035;
+    --c-text-secondary: #5a6480;
+    --c-text-muted: #8a93a8;
+    --c-accent: #1d4ed8;
+    --c-done-bar: #1d4ed8;
+    --c-done-fill: #dbeafe;
+    --c-pending-bar: #b0bec5;
+    --c-pending-fill: #eceff1;
+    --c-overlap-bar: #7c3aed;
+    --c-overlap-fill: #ede9fe;
+    --c-highlight: #0ea5e9;
+    --c-today: #ef4444;
+    --c-milestone: #f59e0b;
+    --c-header-bg: #1a2035;
+    --c-header-text: #e8ecf4;
+    --c-row-alt: #f0f4fb;
+    --c-progress-done: #22c55e;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--c-bg);
+    color: var(--c-text-primary);
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  .page-wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    background: var(--c-surface);
+    border-radius: 12px;
+    border: 1px solid var(--c-border);
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(26,32,53,0.08);
+  }
+
+  /* ─── Cover Header ───────────────────────────────── */
+  .cover {
+    background: var(--c-header-bg);
+    padding: 28px 36px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .cover-left {}
+  .cover-uni {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7b8fcc;
+    margin-bottom: 6px;
+  }
+  .cover-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--c-header-text);
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .cover-subtitle {
+    font-size: 13px;
+    color: #7b8fcc;
+  }
+  .cover-right {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .cover-meta {
+    font-size: 11px;
+    color: #7b8fcc;
+    line-height: 1.8;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .cover-meta span {
+    color: #aab8e0;
+    font-weight: 500;
+  }
+
+  /* ─── Legend bar ─────────────────────────────────── */
+  .legend-bar {
+    background: #f0f4ff;
+    border-bottom: 1px solid var(--c-border);
+    padding: 10px 36px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .legend-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-text-muted);
+    margin-right: 4px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--c-text-secondary);
+  }
+  .legend-dot {
+    width: 14px;
+    height: 10px;
+    border-radius: 3px;
+  }
+  .ld-done     { background: var(--c-done-bar); }
+  .ld-overlap  { background: var(--c-overlap-bar); }
+  .ld-pending  { background: var(--c-pending-bar); }
+  .ld-today    { width: 2px; height: 14px; background: var(--c-today); border-radius: 1px; }
+  .ld-milestone{ width: 10px; height: 10px; background: var(--c-milestone); transform: rotate(45deg); border-radius: 1px; }
+
+  /* ─── Summary stats ──────────────────────────────── */
+  .stats-row {
+    display: flex;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .stat-box {
+    flex: 1;
+    padding: 14px 20px;
+    border-right: 1px solid var(--c-border);
+    text-align: center;
+  }
+  .stat-box:last-child { border-right: none; }
+  .stat-val {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--c-accent);
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-lbl {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* ─── Main Gantt Table ───────────────────────────── */
+  .gantt-scroll {
+    overflow-x: auto;
+  }
+
+  .gantt-table {
+    width: 100%;
+    min-width: 1100px;
+    border-collapse: collapse;
+  }
+
+  /* Header row */
+  .gantt-table thead tr:first-child th {
+    background: #1e2a4a;
+    color: #c8d0e8;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 10px 12px;
+    border-bottom: 2px solid #2d3a5e;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .gantt-table thead tr:first-child th.col-task { text-align: left; }
+
+  /* Month header row */
+  .month-header-row th {
+    background: #253154;
+    color: #8a9ac8;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 0;
+    text-align: center;
+    border-right: 1px solid #2d3a5e;
+  }
+  .month-header-row th.col-task,
+  .month-header-row th.col-meta { background: #253154; border-right: 1px solid #2d3a5e; }
+
+  /* Week header row */
+  .week-header-row th {
+    background: #2d3a5e;
+    color: #6a7aaa;
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    padding: 4px 2px;
+    text-align: center;
+    border-right: 1px solid #364268;
+    border-bottom: 1px solid #253154;
+    min-width: 22px;
+  }
+  .week-header-row th.col-task,
+  .week-header-row th.col-meta {
+    background: #2d3a5e;
+    border-right: 1px solid #364268;
+  }
+
+  /* Column widths */
+  th.col-no    { width: 36px; }
+  th.col-task  { width: 230px; text-align: left; }
+  th.col-start { width: 88px; }
+  th.col-end   { width: 88px; }
+  th.col-dur   { width: 60px; }
+  th.col-prog  { width: 80px; }
+  th.col-week  { min-width: 22px; width: 22px; }
+
+  /* Data rows */
+  .gantt-table tbody tr {
+    border-bottom: 1px solid var(--c-border);
+    transition: background 0.15s;
+  }
+  .gantt-table tbody tr:nth-child(even) { background: var(--c-row-alt); }
+  .gantt-table tbody tr:hover { background: #e8eeff; }
+
+  .gantt-table tbody td {
+    padding: 0;
+    vertical-align: middle;
+    border-right: 1px solid #e8edf5;
+  }
+  .gantt-table tbody td.col-no {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--c-text-muted);
+    padding: 8px 4px;
+  }
+  .gantt-table tbody td.col-task {
+    padding: 8px 12px;
+    font-weight: 500;
+    font-size: 12.5px;
+    color: var(--c-text-primary);
+    line-height: 1.35;
+  }
+  .gantt-table tbody td.col-task .task-desc {
+    font-weight: 400;
+    font-size: 11px;
+    color: var(--c-text-muted);
+    margin-top: 2px;
+    line-height: 1.4;
+  }
+  .gantt-table tbody td.col-start,
+  .gantt-table tbody td.col-end {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--c-text-secondary);
+    padding: 8px 6px;
+    white-space: nowrap;
+  }
+  .gantt-table tbody td.col-dur {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-text-secondary);
+    padding: 8px 4px;
+  }
+  .gantt-table tbody td.col-prog {
+    padding: 8px 10px;
+    vertical-align: middle;
+  }
+  .prog-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .prog-bar-bg {
+    flex: 1;
+    height: 7px;
+    background: #e5e9f2;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .prog-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--c-progress-done);
+    transition: width 0.4s ease;
+  }
+  .prog-pct {
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+    color: var(--c-text-secondary);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  /* Week cells */
+  .gantt-table tbody td.cell-week {
+    padding: 0;
+    height: 52px;
+    min-width: 22px;
+    width: 22px;
+    position: relative;
+    border-right: 1px solid #e8edf5;
+  }
+  .gantt-table tbody td.cell-week.today-col {
+    background: rgba(239,68,68,0.04);
+    border-right: 2px solid var(--c-today);
+  }
+  .bar-cell {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bar-fill {
+    width: 100%;
+    height: 16px;
+    margin: 0;
+  }
+  /* bar start/end rounding by position class */
+  .bar-start { border-radius: 6px 0 0 6px; }
+  .bar-mid   { border-radius: 0; }
+  .bar-end   { border-radius: 0 6px 6px 0; }
+  .bar-solo  { border-radius: 6px; }
+
+  .bar-done    { background: var(--c-done-bar); }
+  .bar-overlap { background: var(--c-overlap-bar); }
+  .bar-pending { background: var(--c-pending-bar); }
+
+  /* Month separator */
+  .month-sep { border-left: 2px solid #b0bcd4 !important; }
+
+  /* Status badge */
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+  .badge-done    { background: #dbeafe; color: #1d4ed8; }
+  .badge-overlap { background: #ede9fe; color: #7c3aed; }
+  .badge-pending { background: #eceff1; color: #546e7a; }
+
+  /* Footer */
+  .gantt-footer {
+    background: #f7f8fa;
+    border-top: 1px solid var(--c-border);
+    padding: 12px 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .gantt-footer .note {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    font-style: italic;
+  }
+  .gantt-footer .gen-date {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--c-text-muted);
+  }
+
+  @media print {
+    body { padding: 0; background: #fff; }
+    .page-wrap { box-shadow: none; border: none; border-radius: 0; }
+    .gantt-table tbody tr:hover { background: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- Cover Header -->
+  <div class="cover">
+    <div class="cover-left">
+      <div class="cover-uni">Complex Engineering Problem (CEP) — Project Schedule</div>
+      <div class="cover-title">Smart Temperature and Humidity Monitoring System Using ATmega328P</div>
+      <div class="cover-subtitle">ATmega328P · AHT20 Sensor · OLED Display · Proteus Simulation · Embedded C</div>
+    </div>
+    <div class="cover-right">
+      <div class="cover-meta">
+        <div><span>Duration:</span> 27 Jan 2026 – 12 May 2026</div>
+        <div><span>Total Days:</span> 106 days</div>
+        <div><span>Total Tasks:</span> 13 tasks</div>
+        <div><span>Format:</span> Weekly Granularity</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend-bar">
+    <span class="legend-label">Legend:</span>
+    <div class="legend-item"><span class="legend-dot ld-done"></span>Completed</div>
+    <div class="legend-item"><span class="legend-dot ld-overlap"></span>Concurrent / Overlap</div>
+    <div class="legend-item"><span class="legend-dot ld-pending"></span>Upcoming</div>
+    <div class="legend-item"><span class="legend-dot ld-today"></span>Today (11 May 2026)</div>
+    <div class="legend-item"><span class="legend-dot ld-milestone"></span>Milestone</div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-val">106</div><div class="stat-lbl">Total Days</div></div>
+    <div class="stat-box"><div class="stat-val">13</div><div class="stat-lbl">Tasks</div></div>
+    <div class="stat-box"><div class="stat-val">92%</div><div class="stat-lbl">Completed</div></div>
+    <div class="stat-box"><div class="stat-val">16w</div><div class="stat-lbl">Timeline Span</div></div>
+    <div class="stat-box"><div class="stat-val">5</div><div class="stat-lbl">Phases</div></div>
+  </div>
+
+  <!-- Gantt Table -->
+  <div class="gantt-scroll">
+    <table class="gantt-table" id="ganttTable">
+      <thead>
+        <!-- Row 1: Column Headers + Month spans -->
+        <tr id="mainHeaderRow">
+          <th class="col-no">#</th>
+          <th class="col-task">Task / Phase</th>
+          <th class="col-start">Start Date</th>
+          <th class="col-end">End Date</th>
+          <th class="col-dur">Duration</th>
+          <th class="col-prog">Progress</th>
+          <!-- Month headers injected by JS -->
+        </tr>
+        <!-- Row 2: Week numbers (injected by JS) -->
+        <tr id="weekHeaderRow" class="week-header-row">
+          <th class="col-task"></th>
+          <th class="col-task"></th>
+          <th class="col-start"></th>
+          <th class="col-end"></th>
+          <th class="col-dur"></th>
+          <th class="col-prog"></th>
+        </tr>
+      </thead>
+      <tbody id="ganttBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div class="gantt-footer">
+    <span class="note">* NED University ~ Electrical Department ~ 2023 - 27.</span>
+    <span class="gen-date">Generated: 11 May 2026</span>
+  </div>
+
+</div>
+
+<script>
+// ─── Date helpers ────────────────────────────────────────────────────────────
+const parseDate = s => { const [d,m,y] = s.split('/').map(Number); return new Date(y,m-1,d); };
+const fmtDate  = d => d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'});
+const diffDays = (a,b) => Math.round((b-a)/(1000*60*60*24))+1;
+
+// ─── Project timeline boundaries ─────────────────────────────────────────────
+const PROJECT_START = parseDate('27/01/2026');
+const PROJECT_END   = parseDate('12/05/2026');
+const TODAY         = new Date(2026,4,11); // 11 May 2026
+
+// ─── Generate weekly buckets ──────────────────────────────────────────────────
+// Each bucket = Monday of that week
+function getWeekStart(d) {
+  const r = new Date(d);
+  const day = r.getDay();
+  const diff = (day === 0) ? -6 : 1 - day;
+  r.setDate(r.getDate() + diff);
+  r.setHours(0,0,0,0);
+  return r;
+}
+
+const weeks = [];
+let cur = getWeekStart(PROJECT_START);
+while (cur <= PROJECT_END) {
+  weeks.push(new Date(cur));
+  cur = new Date(cur);
+  cur.setDate(cur.getDate() + 7);
+}
+
+// ─── Tasks data ───────────────────────────────────────────────────────────────
+const TASKS = [
+  {
+    id:1, name:'Project Topic Finalization',
+    desc:'Decided project title and initial concept',
+    start:'27/01/2026', end:'27/01/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Planning'
+  },
+  {
+    id:2, name:'Component Research & Selection',
+    desc:'OLED, AHT20, ATmega328P — sensors & components research',
+    start:'28/01/2026', end:'30/01/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Planning'
+  },
+  {
+    id:3, name:'Component Purchasing',
+    desc:'Market visit and procurement of electronic components',
+    start:'31/01/2026', end:'01/02/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Planning'
+  },
+  {
+    id:4, name:'Datasheet Study & System Understanding',
+    desc:'Thorough study of OLED, AHT20, ATmega328P datasheets',
+    start:'02/02/2026', end:'08/02/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Research'
+  },
+  {
+    id:5, name:'Development Environment Setup',
+    desc:'Code::Blocks, AVR toolchain, extensions & libraries installed',
+    start:'09/02/2026', end:'10/02/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Research'
+  },
+  {
+    id:6, name:'Proteus Installation & Learning',
+    desc:'Installed Proteus, learned simulation basics',
+    start:'11/02/2026', end:'17/02/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Research'
+  },
+  {
+    id:7, name:'Proteus Circuit Design & Simulation',
+    desc:'Advanced simulation, complete system design, debugging & successful simulation',
+    start:'18/02/2026', end:'09/05/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Development'
+  },
+  {
+    id:8, name:'Embedded C Programming',
+    desc:'Developed and tested Embedded C code for full system',
+    start:'03/05/2026', end:'09/05/2026',
+    pct:100, badge:'overlap', color:'overlap',
+    phase:'Development'
+  },
+  {
+    id:9, name:'Intermediate Report Preparation',
+    desc:'Prepared and submitted intermediate project report',
+    start:'10/05/2026', end:'10/05/2026',
+    pct:100, badge:'done', color:'done',
+    phase:'Reporting'
+  },
+  {
+    id:10, name:'Breadboard Hardware Implementation',
+    desc:'Hardware implementation and functional testing on breadboard',
+    start:'11/05/2026', end:'11/05/2026',
+    pct:50, badge:'pending', color:'pending',
+    phase:'Hardware'
+  },
+  {
+    id:11, name:'Vero Board Soldering & Final Assembly',
+    desc:'Permanent hardware assembly on vero board',
+    start:'11/05/2026', end:'11/05/2026',
+    pct:50, badge:'pending', color:'pending',
+    phase:'Hardware'
+  },
+  {
+    id:12, name:'Final Report & Presentation Prep',
+    desc:'Final documentation and slide preparation',
+    start:'11/05/2026', end:'11/05/2026',
+    pct:50, badge:'pending', color:'pending',
+    phase:'Reporting'
+  },
+  {
+    id:13, name:'Final Submission, Viva & Evaluation',
+    desc:'Final presentation, viva defense, hardware evaluation — Milestone',
+    start:'12/05/2026', end:'12/05/2026',
+    pct:0, badge:'pending', color:'pending',
+    phase:'Final',
+    milestone: true
+  },
+];
+
+// ─── Month grouping for header ────────────────────────────────────────────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun'];
+const MONTH_NAMES = ['January','February','March','April','May','June'];
+
+function getMonthKey(d) { return `${d.getFullYear()}-${d.getMonth()}`; }
+
+// build month → week indices
+const monthGroups = new Map();
+weeks.forEach((w,i) => {
+  const key = getMonthKey(w);
+  if (!monthGroups.has(key)) monthGroups.set(key, {name: MONTHS[w.getMonth()], full: MONTH_NAMES[w.getMonth()], indices:[]});
+  monthGroups.get(key).indices.push(i);
+});
+
+// ─── Build month header row ───────────────────────────────────────────────────
+const mainHeaderRow = document.getElementById('mainHeaderRow');
+monthGroups.forEach((v, key) => {
+  const th = document.createElement('th');
+  th.colSpan = v.indices.length;
+  th.textContent = v.full + ' 2026';
+  th.style.textAlign = 'center';
+  th.style.borderLeft = '2px solid #364268';
+  mainHeaderRow.appendChild(th);
+});
+
+// ─── Build week number header ─────────────────────────────────────────────────
+const weekHeaderRow = document.getElementById('weekHeaderRow');
+weeks.forEach((w, i) => {
+  const th = document.createElement('th');
+  th.className = 'col-week';
+  // check if first week of a month
+  const isFirst = (i === 0) || (w.getMonth() !== weeks[i-1].getMonth());
+  if (isFirst) th.classList.add('month-sep');
+  const weekNum = Math.ceil((((w - new Date(w.getFullYear(),0,1))/86400000) + new Date(w.getFullYear(),0,1).getDay()+1)/7);
+  // Just show day of month for week start
+  th.textContent = w.getDate();
+  weekHeaderRow.appendChild(th);
+});
+
+// ─── Helper: is a date within a week bucket? ─────────────────────────────────
+function weekContains(weekMon, taskStart, taskEnd) {
+  const wEnd = new Date(weekMon);
+  wEnd.setDate(wEnd.getDate() + 6);
+  return taskStart <= wEnd && taskEnd >= weekMon;
+}
+
+function barClass(pos, color) {
+  const bc = color === 'done' ? 'bar-done' : color === 'overlap' ? 'bar-overlap' : 'bar-pending';
+  return `bar-fill ${bc} ${pos}`;
+}
+
+// ─── Build task rows ──────────────────────────────────────────────────────────
+const tbody = document.getElementById('ganttBody');
+
+TASKS.forEach(task => {
+  const tStart = parseDate(task.start);
+  const tEnd   = parseDate(task.end);
+  const dur    = diffDays(tStart, tEnd);
+  const durStr = dur === 1 ? '1 day' : `${dur} days`;
+
+  // find bar positions
+  const barWeeks = weeks.map((w, i) => {
+    if (!weekContains(w, tStart, tEnd)) return null;
+    // determine position
+    const isFirst = !weeks[i-1] || !weekContains(weeks[i-1], tStart, tEnd);
+    const isLast  = !weeks[i+1] || !weekContains(weeks[i+1], tStart, tEnd);
+    if (isFirst && isLast) return 'bar-solo';
+    if (isFirst)           return 'bar-start';
+    if (isLast)            return 'bar-end';
+    return 'bar-mid';
+  });
+
+  const tr = document.createElement('tr');
+
+  // #
+  const tdNo = document.createElement('td');
+  tdNo.className = 'col-no';
+  tdNo.textContent = task.id;
+  tr.appendChild(tdNo);
+
+  // Task
+  const tdTask = document.createElement('td');
+  tdTask.className = 'col-task';
+  tdTask.innerHTML = `
+    <div>${task.milestone ? '◆ ' : ''}${task.name}</div>
+    <div class="task-desc">${task.desc}</div>
+    <span class="badge badge-${task.badge}">${task.badge === 'done' ? 'Completed' : task.badge === 'overlap' ? 'Concurrent' : 'Upcoming'}</span>
+  `;
+  tr.appendChild(tdTask);
+
+  // Start
+  const tdStart = document.createElement('td');
+  tdStart.className = 'col-start';
+  tdStart.textContent = fmtDate(tStart);
+  tr.appendChild(tdStart);
+
+  // End
+  const tdEnd = document.createElement('td');
+  tdEnd.className = 'col-end';
+  tdEnd.textContent = fmtDate(tEnd);
+  tr.appendChild(tdEnd);
+
+  // Duration
+  const tdDur = document.createElement('td');
+  tdDur.className = 'col-dur';
+  tdDur.textContent = durStr;
+  tr.appendChild(tdDur);
+
+  // Progress
+  const tdProg = document.createElement('td');
+  tdProg.className = 'col-prog';
+  tdProg.innerHTML = `
+    <div class="prog-wrap">
+      <div class="prog-bar-bg"><div class="prog-bar-fill" style="width:${task.pct}%"></div></div>
+      <span class="prog-pct">${task.pct}%</span>
+    </div>
+  `;
+  tr.appendChild(tdProg);
+
+  // Week cells
+  weeks.forEach((w, i) => {
+    const td = document.createElement('td');
+    td.className = 'cell-week';
+    const isFirst = (i === 0) || (w.getMonth() !== weeks[i-1].getMonth());
+    if (isFirst) td.classList.add('month-sep');
+
+    // today column
+    const wEnd = new Date(w); wEnd.setDate(wEnd.getDate()+6);
+    if (TODAY >= w && TODAY <= wEnd) td.classList.add('today-col');
+
+    if (barWeeks[i]) {
+      const div = document.createElement('div');
+      div.className = 'bar-cell';
+      const bar = document.createElement('div');
+      bar.className = barClass(barWeeks[i], task.color);
+      // milestone pulse
+      if (task.milestone && barWeeks[i] === 'bar-solo') {
+        bar.style.background = '#f59e0b';
+        bar.style.height = '14px';
+        bar.style.borderRadius = '3px';
+      }
+      div.appendChild(bar);
+      td.appendChild(div);
+    }
+    tr.appendChild(td);
+  });
+
+  tbody.appendChild(tr);
+});
+</script>
+</body>
+</html>
